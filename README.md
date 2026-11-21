@@ -29,7 +29,6 @@ npm install
 npx hardhat test                      # 10 tests
 
 DEPLOYER_PRIVATE_KEY=0x... \
-TREASURY=0xYourTreasury \
 npx hardhat run scripts/deploy.js --network sepolia
 ```
 

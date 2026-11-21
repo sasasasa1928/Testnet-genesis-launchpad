@@ -3,12 +3,13 @@ const { ethers } = require("hardhat");
 const E = ethers.parseEther;
 
 describe("GenesisFactory", () => {
-  let f, owner, treasury, alice, bob, payout;
+  let f, owner, alice, bob, payout;
+  const TREASURY = "0xc6D30E0B0F64Ca07942Efd3646A6e224F54ecfb9";
   const VE = E("0.1"), VT = E("1073000000");
 
   async function deploy(router = ethers.ZeroAddress) {
-    [owner, treasury, alice, bob, payout] = await ethers.getSigners();
-    f = await (await ethers.getContractFactory("GenesisFactory")).deploy(treasury.address, router, VE, VT);
+    [owner, alice, bob, payout] = await ethers.getSigners();
+    f = await (await ethers.getContractFactory("GenesisFactory")).deploy(router, VE, VT);
   }
   async function launch(signer, feeBps = 100, recipient = ethers.ZeroAddress, burnBps = 0, value = 0n) {
     const tx = await f.connect(signer).createToken("Test", "TST", '{"description":"hi"}', feeBps, recipient, burnBps, 0, { value });
@@ -29,7 +30,7 @@ describe("GenesisFactory", () => {
   it("buy splits fee 0.7% protocol / rest creator, and claim works", async () => {
     const t = await launch(alice, 300); // 3% total => 0.7% protocol, 2.3% creator
     await f.connect(bob).buy(await t.getAddress(), 0, { value: E("0.01") });
-    expect(await f.claimable(treasury.address)).to.equal(E("0.00007"));
+    expect(await f.claimable(TREASURY)).to.equal(E("0.00007"));
     expect(await f.claimable(alice.address)).to.equal(E("0.00023"));
     expect(await t.balanceOf(bob.address)).to.be.gt(0n);
     await expect(f.connect(alice).claim()).to.changeEtherBalance(alice, E("0.00023"));
@@ -83,7 +84,7 @@ describe("GenesisFactory", () => {
     const c = await f.curves(addr);
     expect(c.graduated).to.equal(true);
     expect(await t.balanceOf(bob.address)).to.equal(E("800000000"));
-    expect(await t.balanceOf(treasury.address)).to.equal(E("200000000"));
+    expect(await t.balanceOf(TREASURY)).to.equal(E("200000000"));
     await expect(f.connect(bob).buy(addr, 0, { value: E("0.01") })).to.be.revertedWithCustomError(f, "IsGraduated");
     await expect(f.connect(bob).sell(addr, 1n, 0)).to.be.revertedWithCustomError(f, "IsGraduated");
     console.log("      ETH to graduate (net):", ethers.formatEther(need));
@@ -99,6 +100,14 @@ describe("GenesisFactory", () => {
     expect(await router.lastTokens()).to.equal(E("200000000"));
     expect(await router.lastEth()).to.be.gt(0n);
     expect(await router.lastTo()).to.equal("0x000000000000000000000000000000000000dEaD");
+  });
+
+  it("treasury is hard-coded and cannot be changed", async () => {
+    expect(f.interface.getFunction("setTreasury")).to.equal(null);
+    expect(f.interface.getFunction("treasury")).to.equal(null); // not exposed
+    const t = await launch(alice, 100);
+    await f.connect(bob).buy(await t.getAddress(), 0, { value: E("0.01") });
+    expect(await f.claimable(TREASURY)).to.equal(E("0.00007"));
   });
 
   it("creator can change fee recipient and burn share", async () => {

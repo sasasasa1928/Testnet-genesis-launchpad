@@ -17,15 +17,13 @@ export default function Deploy() {
   const { deployContractAsync } = useDeployContract();
   const { data: bal } = useBalance({ address, chainId: CHAIN.id, query: { enabled: !!address } });
 
-  const [treasury, setTreasury] = useState("");
   const [router, setRouter] = useState("");
   const [virtualEth, setVirtualEth] = useState("0.1");
   const [state, setState] = useState<{ kind: "idle" | "pending" | "ok" | "error"; msg?: string; hash?: string }>({ kind: "idle" });
   const [result, setResult] = useState<{ address: Address; block: bigint } | null>(null);
   const [copied, setCopied] = useState("");
 
-  const treasuryAddr = (treasury || address || "") as Address;
-  const valid = isAddress(treasuryAddr) && (router === "" || isAddress(router)) && Number(virtualEth) > 0;
+  const valid = (router === "" || isAddress(router)) && Number(virtualEth) > 0;
 
   async function deploy() {
     if (!address) return login();
@@ -35,7 +33,7 @@ export default function Deploy() {
       const hash = await deployContractAsync({
         abi: factoryAbi,
         bytecode: factoryBytecode,
-        args: [treasuryAddr, (router || zeroAddress) as Address, parseEther(virtualEth), parseEther("1073000000")],
+        args: [(router || zeroAddress) as Address, parseEther(virtualEth), parseEther("1073000000")],
         chainId: CHAIN.id,
       });
       setState({ kind: "pending", msg: "Deploying… this takes about 15–30 seconds.", hash });
@@ -76,14 +74,9 @@ export default function Deploy() {
             <div className="kv"><span>Deployer</span><span className="mono">{address.slice(0, 8)}…{address.slice(-6)}</span></div>
             <div className="kv"><span>Sepolia balance</span><span className="mono">{bal ? eth(Number(bal.formatted), 4) : "…"} ETH</span></div>
             <div className="field">
-              <label>Treasury wallet (receives the 0.7% protocol fee)</label>
-              <input className="input mono" placeholder={address} value={treasury} onChange={(e) => setTreasury(e.target.value.trim())} />
-              <div className="hint">Leave empty to use your connected wallet. You can change it later.</div>
-            </div>
-            <div className="field">
               <label>DEX router (optional)</label>
               <input className="input mono" placeholder="0x… Uniswap V2-style router" value={router} onChange={(e) => setRouter(e.target.value.trim())} />
-              <div className="hint">Leave empty: graduated liquidity goes to the treasury. Can be set later.</div>
+              <div className="hint">Optional. Can be set later.</div>
             </div>
             <div className="field">
               <label>Virtual ETH reserve</label>

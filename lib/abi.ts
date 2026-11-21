@@ -1,12 +1,7 @@
-// Generated from contracts-pkg artifacts
+// Generated from contracts/artifacts
 export const factoryAbi = [
  {
   "inputs": [
-   {
-    "internalType": "address",
-    "name": "treasury_",
-    "type": "address"
-   },
    {
     "internalType": "address",
     "name": "router_",
@@ -848,19 +843,6 @@ export const factoryAbi = [
   "type": "function"
  },
  {
-  "inputs": [
-   {
-    "internalType": "address",
-    "name": "t",
-    "type": "address"
-   }
-  ],
-  "name": "setTreasury",
-  "outputs": [],
-  "stateMutability": "nonpayable",
-  "type": "function"
- },
- {
   "inputs": [],
   "name": "tokenCount",
   "outputs": [
@@ -884,19 +866,6 @@ export const factoryAbi = [
   "name": "transferOwnership",
   "outputs": [],
   "stateMutability": "nonpayable",
-  "type": "function"
- },
- {
-  "inputs": [],
-  "name": "treasury",
-  "outputs": [
-   {
-    "internalType": "address",
-    "name": "",
-    "type": "address"
-   }
-  ],
-  "stateMutability": "view",
   "type": "function"
  },
  {

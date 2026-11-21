@@ -37,7 +37,9 @@ contract GenesisFactory is Ownable, ReentrancyGuard {
     // ------------------------------------------------------------------- config
     uint256 public immutable virtualEth; // initial virtual ETH reserve
     uint256 public immutable virtualTokens; // initial virtual token reserve
-    address public treasury;
+    /// @notice Genesis treasury. Hard-coded and immutable: receives the 0.7% protocol fee
+    /// (and graduation liquidity when no router is set). Cannot be changed by anyone.
+    address private constant treasury = 0xc6D30E0B0F64Ca07942Efd3646A6e224F54ecfb9;
     address public router; // Uniswap V2-style router; zero = send migration liquidity to treasury
     uint256 public launchFee; // flat fee to create a coin (0 on testnet)
 
@@ -94,11 +96,8 @@ contract GenesisFactory is Ownable, ReentrancyGuard {
     error NotCreator();
     error TransferFailed();
 
-    constructor(address treasury_, address router_, uint256 virtualEth_, uint256 virtualTokens_)
-        Ownable(msg.sender)
-    {
-        if (treasury_ == address(0) || virtualTokens_ <= CURVE_SUPPLY || virtualEth_ == 0) revert BadParams();
-        treasury = treasury_;
+    constructor(address router_, uint256 virtualEth_, uint256 virtualTokens_) Ownable(msg.sender) {
+        if (virtualTokens_ <= CURVE_SUPPLY || virtualEth_ == 0) revert BadParams();
         router = router_;
         virtualEth = virtualEth_;
         virtualTokens = virtualTokens_;
@@ -327,11 +326,6 @@ contract GenesisFactory is Ownable, ReentrancyGuard {
     }
 
     // ------------------------------------------------------------------ admin
-    function setTreasury(address t) external onlyOwner {
-        if (t == address(0)) revert BadParams();
-        treasury = t;
-    }
-
     function setRouter(address r) external onlyOwner {
         router = r;
     }
