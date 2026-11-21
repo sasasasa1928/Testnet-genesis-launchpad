@@ -267,3 +267,10 @@ body > main, body main.container { flex: 1 0 auto; width: 100%; }
 @media (max-width: 520px) { .steps { grid-template-columns: 1fr; } }
 .step { display: block; transition: border-color .15s; }
 .step-n { font-family: var(--mono); font-size: 26px; font-weight: 800; }
+
+/* ---------------------------------------------------------- image upload */
+.dropzone { display: flex; align-items: center; gap: 14px; padding: 14px; border: 1px dashed var(--line-2); border-radius: 12px; background: var(--panel-2); cursor: pointer; transition: border-color .15s; }
+.dropzone:hover { border-color: var(--silver-3); }
+.dropzone.busy { opacity: .7; cursor: progress; }
+.dropzone-icon { width: 64px; height: 64px; border-radius: 10px; display: grid; place-items: center; background: #1a1b1f; color: var(--silver-2); font-size: 22px; flex-shrink: 0; }
+.dropzone-img { width: 64px; height: 64px; border-radius: 10px; object-fit: cover; flex-shrink: 0; border: 1px solid var(--line-2); }

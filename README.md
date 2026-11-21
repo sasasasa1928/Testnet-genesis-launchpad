@@ -4,7 +4,7 @@ Testnet version of [Genesis](https://genesislaunch.family), served at **testnet.
 You can launch a coin, trade it on a bonding curve and graduate it on **Ethereum Sepolia**, using test ETH only.
 
 ```
-/            Next.js app (static export), deployed on Vercel
+/            Next.js app on Vercel (pages + API routes: /api/snapshot indexer, /api/upload, /api/og share images)
 /contracts   Solidity contracts (Hardhat): GenesisFactory + GenesisToken
 ```
 
@@ -51,6 +51,14 @@ Optional settings:
    - `NEXT_PUBLIC_LEGACY_FACTORIES` (optional): previous Genesis contracts, so their coins stay listed and tradable after you deploy a new one. Format: `0xOldAddress:startBlock[:version]`, comma-separated. Version `1` is the first testnet contract (no holder rewards) and is the default. The `/deploy/` page prints the right value after a redeploy.
 3. In Settings → Domains, add `testnet.genesislaunch.family`. Then add the CNAME record Vercel shows you at Hostinger, with host `testnet`.
 4. In the Privy dashboard, add `https://testnet.genesislaunch.family` to the allowed domains.
+
+## Indexer, image upload and share cards
+
+- **`/api/snapshot`** is the indexer. It keeps all Genesis events and fetches only new blocks on each refresh, so visitors don't each scan the chain. Responses are cached at the CDN for a few seconds. If it's unavailable, the browser falls back to reading the chain directly.
+- **`/api/upload`** lets creators upload coin images (PNG/JPG/WEBP/GIF, max 4 MB) straight to Vercel Blob.
+- **`/api/og/?a=0xToken`** renders the share image for a coin. Coin pages set it as their X/Telegram preview. The homepage has its own share image.
+
+**Vercel Blob setup:** in the Vercel project, go to Storage → Create → Blob, then connect it to this project. That adds `BLOB_READ_WRITE_TOKEN` automatically. Redeploy. Without Blob, uploads fall back to pasting an image link, and the indexer still works but restarts its scan after cold starts.
 
 ## Local dev
 

@@ -43,7 +43,7 @@ export type Trade = {
   tx: string;
 };
 
-export type Snapshot = { coins: Coin[]; trades: Trade[]; latestBlock: bigint };
+export type Snapshot = { coins: Coin[]; trades: Trade[]; latestBlock: number; source?: "indexer" | "chain" | "demo" };
 
 const createdEvent = parseAbiItem(
   "event TokenCreated(address indexed token, address indexed creator, string name, string symbol, string metadata, uint16 totalFeeBps, address feeRecipient, uint16 burnBps, uint16 holderBps)"
@@ -77,104 +77,159 @@ async function getLogsChunked<T>(fetcher: (from: bigint, to: bigint) => Promise<
   return out;
 }
 
-export async function loadSnapshot(): Promise<Snapshot> {
-  if (DEMO || !FACTORY) return demoSnapshot();
-  const latest = await publicClient.getBlock();
-  const latestBlock = latest.number;
-  const timeOf = (bn: bigint) => Number(latest.timestamp) - Number(latestBlock - bn) * 12;
-  const parts = await Promise.all(FACTORIES.map((f) => loadFactory(f, latestBlock, timeOf)));
-  const coins = parts.flatMap((p) => p.coins).sort((x, y) => y.createdAt - x.createdAt);
-  const trades = parts.flatMap((p) => p.trades).sort((x, y) => x.time - y.time);
-  return { coins, trades, latestBlock };
-}
+// ----------------------------------------------------------- raw events
+// Raw, JSON-safe event records (wei amounts as decimal strings). The server indexer stores these
+// and merges new blocks in; the browser can also build them directly from the chain as a fallback.
 
-async function loadFactory(f: FactoryInfo, latestBlock: bigint, timeOf: (bn: bigint) => number) {
+export type RawCreated = {
+  factory: Address; version: 1 | 2; block: number; token: Address; creator: Address; name: string; symbol: string;
+  metadata: string; totalFeeBps: number; feeRecipient: Address; burnBps: number; holderBps: number;
+};
+export type RawTrade = {
+  factory: Address; block: number; logIndex: number; tx: string; token: Address; trader: Address; isBuy: boolean;
+  eth: string; tokens: string; fee: string; vEth: string; vTokens: string; realEth: string;
+};
+export type RawState = {
+  created: RawCreated[];
+  trades: RawTrade[];
+  graduated: string[]; // token addresses (lowercase)
+  initV: Record<string, { vEth: string; vTokens: string }>; // per factory (lowercase)
+  scanned: Record<string, number>; // last scanned block per factory (lowercase)
+  latestBlock: number;
+  latestTimestamp: number;
+};
+
+export const emptyRaw = (): RawState => ({ created: [], trades: [], graduated: [], initV: {}, scanned: {}, latestBlock: 0, latestTimestamp: 0 });
+
+/** Fetch one contract's events between two blocks. */
+export async function fetchRaw(f: FactoryInfo, from: bigint, to: bigint) {
   const factory = f.address;
-  const from = f.startBlock;
-
-  type CreatedArgs = {
-    token?: Address; creator?: Address; name?: string; symbol?: string; metadata?: string;
-    totalFeeBps?: number; feeRecipient?: Address; burnBps?: number; holderBps?: number;
-  };
-  const createdP: Promise<{ args: CreatedArgs; blockNumber: bigint }[]> =
+  if (from > to) return { created: [] as RawCreated[], trades: [] as RawTrade[], graduated: [] as string[] };
+  const createdP =
     f.version === 2
-      ? getLogsChunked((a, b) => publicClient.getLogs({ address: factory, event: createdEvent, fromBlock: a, toBlock: b }), from, latestBlock)
-      : getLogsChunked((a, b) => publicClient.getLogs({ address: factory, event: createdEventV1, fromBlock: a, toBlock: b }), from, latestBlock);
-
+      ? getLogsChunked((a, b) => publicClient.getLogs({ address: factory, event: createdEvent, fromBlock: a, toBlock: b }), from, to)
+      : getLogsChunked((a, b) => publicClient.getLogs({ address: factory, event: createdEventV1, fromBlock: a, toBlock: b }), from, to);
   const [created, trades, grads] = await Promise.all([
     createdP,
-    getLogsChunked((a, b) => publicClient.getLogs({ address: factory, event: tradeEvent, fromBlock: a, toBlock: b }), from, latestBlock),
-    getLogsChunked((a, b) => publicClient.getLogs({ address: factory, event: gradEvent, fromBlock: a, toBlock: b }), from, latestBlock),
+    getLogsChunked((a, b) => publicClient.getLogs({ address: factory, event: tradeEvent, fromBlock: a, toBlock: b }), from, to),
+    getLogsChunked((a, b) => publicClient.getLogs({ address: factory, event: gradEvent, fromBlock: a, toBlock: b }), from, to),
   ]);
+  return {
+    created: created.map((l): RawCreated => {
+      const a = l.args as Record<string, unknown>;
+      return {
+        factory, version: f.version, block: Number(l.blockNumber), token: a.token as Address, creator: a.creator as Address,
+        name: a.name as string, symbol: a.symbol as string, metadata: a.metadata as string, totalFeeBps: Number(a.totalFeeBps),
+        feeRecipient: a.feeRecipient as Address, burnBps: Number(a.burnBps), holderBps: f.version === 2 ? Number(a.holderBps ?? 0) : 0,
+      };
+    }),
+    trades: trades.map((l): RawTrade => ({
+      factory, block: Number(l.blockNumber), logIndex: l.logIndex, tx: l.transactionHash, token: l.args.token!, trader: l.args.trader!,
+      isBuy: l.args.isBuy!, eth: l.args.ethAmount!.toString(), tokens: l.args.tokenAmount!.toString(), fee: l.args.fee!.toString(),
+      vEth: l.args.vEth!.toString(), vTokens: l.args.vTokens!.toString(), realEth: l.args.realEth!.toString(),
+    })),
+    graduated: grads.map((g) => g.args.token!.toLowerCase()),
+  };
+}
 
-  const graduated = new Set(grads.map((g) => g.args.token!.toLowerCase()));
-  const tradeList: Trade[] = trades.map((l) => {
-    const a = l.args;
-    return {
-      token: a.token!,
-      trader: a.trader!,
-      isBuy: a.isBuy!,
-      eth: n(a.ethAmount!),
-      tokens: n(a.tokenAmount!),
-      fee: n(a.fee!),
-      price: n(a.vEth!) / n(a.vTokens!),
-      time: timeOf(l.blockNumber),
-      tx: l.transactionHash,
-    };
-  });
+/** Bring a raw state up to the latest block (incremental). Returns true if anything changed. */
+export async function refreshRaw(state: RawState): Promise<boolean> {
+  const latest = await publicClient.getBlock();
+  const to = latest.number;
+  let changed = false;
+  for (const f of FACTORIES) {
+    const key = f.address.toLowerCase();
+    if (!state.initV[key]) {
+      const [ve, vt] = await Promise.all([
+        publicClient.readContract({ address: f.address, abi: factoryAbi, functionName: "virtualEth" }),
+        publicClient.readContract({ address: f.address, abi: factoryAbi, functionName: "virtualTokens" }),
+      ]);
+      state.initV[key] = { vEth: ve.toString(), vTokens: vt.toString() };
+      changed = true;
+    }
+    const from = state.scanned[key] !== undefined ? BigInt(state.scanned[key] + 1) : f.startBlock;
+    const part = await fetchRaw(f, from, to);
+    if (part.created.length || part.trades.length || part.graduated.length) changed = true;
+    const seenC = new Set(state.created.map((c) => c.token.toLowerCase()));
+    for (const c of part.created) if (!seenC.has(c.token.toLowerCase())) state.created.push(c);
+    const seenT = new Set(state.trades.map((t) => `${t.tx}:${t.logIndex}`));
+    for (const t of part.trades) if (!seenT.has(`${t.tx}:${t.logIndex}`)) state.trades.push(t);
+    for (const g of part.graduated) if (!state.graduated.includes(g)) state.graduated.push(g);
+    state.scanned[key] = Number(to);
+  }
+  state.trades.sort((a, b) => a.block - b.block || a.logIndex - b.logIndex);
+  state.latestBlock = Number(to);
+  state.latestTimestamp = Number(latest.timestamp);
+  return changed;
+}
 
-  // Latest curve state per token comes from its last Trade event (or the initial reserves).
-  const lastTrade = new Map<string, (typeof trades)[number]>();
-  for (const t of trades) lastTrade.set(t.args.token!.toLowerCase(), t);
+const w = (v: string) => Number(formatEther(BigInt(v)));
 
-  let initV = { vEth: 0, vTokens: 1 };
-  if (created.length) {
-    const [ve, vt] = await Promise.all([
-      publicClient.readContract({ address: factory, abi: factoryAbi, functionName: "virtualEth" }),
-      publicClient.readContract({ address: factory, abi: factoryAbi, functionName: "virtualTokens" }),
-    ]);
-    initV = { vEth: n(ve), vTokens: n(vt) };
+/** Turn raw events into the coins + trades the UI shows. */
+export function buildSnapshot(state: RawState): Snapshot {
+  const timeOf = (block: number) => state.latestTimestamp - (state.latestBlock - block) * 12;
+  const active = new Set(FACTORIES.map((f) => f.address.toLowerCase()));
+  const graduated = new Set(state.graduated);
+  const trades: Trade[] = state.trades
+    .filter((t) => active.has(t.factory.toLowerCase()))
+    .map((t) => ({
+      token: t.token, trader: t.trader, isBuy: t.isBuy, eth: w(t.eth), tokens: w(t.tokens), fee: w(t.fee),
+      price: w(t.vEth) / w(t.vTokens), time: timeOf(t.block), tx: t.tx,
+    }));
+  const lastTrade = new Map<string, RawTrade>();
+  for (const t of state.trades) lastTrade.set(t.token.toLowerCase(), t);
+  const byToken = new Map<string, Trade[]>();
+  for (const t of trades) {
+    const k = t.token.toLowerCase();
+    if (!byToken.has(k)) byToken.set(k, []);
+    byToken.get(k)!.push(t);
   }
 
-  const coins: Coin[] = created.map((l) => {
-    const a = l.args;
-    const key = a.token!.toLowerCase();
-    const lt = lastTrade.get(key);
-    const vEth = lt ? n(lt.args.vEth!) : initV.vEth;
-    const vTokens = lt ? n(lt.args.vTokens!) : initV.vTokens;
-    const realEth = lt ? n(lt.args.realEth!) : 0;
-    const myTrades = tradeList.filter((t) => t.token.toLowerCase() === key);
-    const grad = graduated.has(key);
-    const tokensSold = Math.max(0, initV.vTokens - vTokens);
-    return {
-      address: a.token!,
-      factory,
-      version: f.version,
-      name: a.name!,
-      symbol: a.symbol!,
-      meta: parseMeta(a.metadata!),
-      creator: a.creator!,
-      feeRecipient: a.feeRecipient!,
-      totalFeeBps: Number(a.totalFeeBps),
-      burnBps: Number(a.burnBps),
-      holderBps: f.version === 2 ? Number(a.holderBps ?? 0) : 0,
-      createdAt: timeOf(l.blockNumber),
-      graduated: grad,
-      vEth,
-      vTokens,
-      realEth,
-      tokensSold,
-      price: vEth / vTokens,
-      startPrice: initV.vEth / initV.vTokens,
-      marketCap: (vEth / vTokens) * TOTAL_SUPPLY,
-      progress: grad ? 1 : Math.min(1, tokensSold / CURVE_SUPPLY),
-      volume: myTrades.reduce((s, t) => s + t.eth, 0),
-      trades: myTrades.length,
-      lastTradeAt: myTrades.length ? myTrades[myTrades.length - 1].time : timeOf(l.blockNumber),
-    };
-  });
+  const coins: Coin[] = state.created
+    .filter((c) => active.has(c.factory.toLowerCase()))
+    .map((c) => {
+      const key = c.token.toLowerCase();
+      const init = state.initV[c.factory.toLowerCase()] ?? { vEth: "0", vTokens: "1" };
+      const iE = w(init.vEth), iT = w(init.vTokens);
+      const lt = lastTrade.get(key);
+      const vEth = lt ? w(lt.vEth) : iE;
+      const vTokens = lt ? w(lt.vTokens) : iT;
+      const mine = byToken.get(key) ?? [];
+      const grad = graduated.has(key);
+      const tokensSold = Math.max(0, iT - vTokens);
+      return {
+        address: c.token, factory: c.factory, version: c.version, name: c.name, symbol: c.symbol, meta: parseMeta(c.metadata),
+        creator: c.creator, feeRecipient: c.feeRecipient, totalFeeBps: c.totalFeeBps, burnBps: c.burnBps, holderBps: c.holderBps,
+        createdAt: timeOf(c.block), graduated: grad, vEth, vTokens, realEth: lt ? w(lt.realEth) : 0, tokensSold,
+        price: vEth / vTokens, startPrice: iE / iT, marketCap: (vEth / vTokens) * TOTAL_SUPPLY,
+        progress: grad ? 1 : Math.min(1, tokensSold / CURVE_SUPPLY),
+        volume: mine.reduce((s, t) => s + t.eth, 0), trades: mine.length,
+        lastTradeAt: mine.length ? mine[mine.length - 1].time : timeOf(c.block),
+      };
+    })
+    .sort((x, y) => y.createdAt - x.createdAt);
 
-  return { coins, trades: tradeList };
+  return { coins, trades, latestBlock: state.latestBlock };
+}
+
+/**
+ * Browser entry point: ask the Genesis indexer (/api/snapshot) first; if it's unavailable,
+ * read the chain directly (slower, but always works).
+ */
+export async function loadSnapshot(): Promise<Snapshot> {
+  if (DEMO || !FACTORY) return { ...demoSnapshot(), source: "demo" };
+  try {
+    const r = await fetch("/api/snapshot/", { cache: "no-store" });
+    if (r.ok) {
+      const snap = (await r.json()) as Snapshot;
+      if (Array.isArray(snap.coins)) return { ...snap, source: "indexer" };
+    }
+  } catch {
+    /* fall back to chain */
+  }
+  const state = emptyRaw();
+  await refreshRaw(state);
+  return { ...buildSnapshot(state), source: "chain" };
 }
 
 // ------------------------------------------------------------------ points
@@ -208,7 +263,7 @@ export function computePoints(s: Snapshot): PointsRow[] {
 
 // -------------------------------------------------------------------- demo
 
-function demoSnapshot(): Snapshot {
+export function demoSnapshot(): Snapshot {
   const now = Math.floor(Date.now() / 1000);
   const V0 = 0.1, T0 = 1_073_000_000;
   const seeds: Array<[string, string, string, number, number, number]> = [
@@ -257,5 +312,5 @@ function demoSnapshot(): Snapshot {
       lastTradeAt: mine.length ? mine[mine.length - 1].time : now - ago * 60,
     });
   });
-  return { coins, trades, latestBlock: 0n };
+  return { coins, trades, latestBlock: 0 };
 }

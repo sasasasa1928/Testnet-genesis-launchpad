@@ -10,6 +10,7 @@ import { factoryAbi } from "@/lib/abi";
 import { DEMO, FACTORY, PROTOCOL_FEE_PCT } from "@/lib/config";
 import { useTx } from "@/lib/hooks";
 import { TxStatus } from "@/components/TxStatus";
+import { ImageUpload } from "@/components/ImageUpload";
 
 type Dest = "me" | "wallet" | "holders" | "burn" | "split";
 
@@ -99,9 +100,8 @@ export default function Launch() {
             <textarea className="input" maxLength={280} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What's the story?" />
           </div>
           <div className="field">
-            <label>Image URL</label>
-            <input className="input" value={image} onChange={(e) => setImage(e.target.value)} placeholder="https://…/coin.png" />
-            <div className="hint">Paste a link to a square image. Leave empty for a generated silver badge.</div>
+            <label>Image</label>
+            <ImageUpload value={image} onChange={setImage} />
           </div>
           <div className="two">
             <div className="field">

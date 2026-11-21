@@ -8,7 +8,8 @@ export const metadata: Metadata = {
   title: "Genesis · testnet",
   description: "Every Great Thing Starts at Zero. Launch a coin, trade it, graduate it. Genesis testnet on Ethereum Sepolia, test ETH only.",
   metadataBase: new URL("https://testnet.genesislaunch.family"),
-  openGraph: { title: "Genesis · testnet", description: "Every Great Thing Starts at Zero.", images: ["/logo.png"] },
+  openGraph: { title: "Genesis · testnet", description: "Every Great Thing Starts at Zero.", siteName: "Genesis" },
+  twitter: { card: "summary_large_image", title: "Genesis · testnet", description: "Every Great Thing Starts at Zero." },
 };
 
 export const viewport = { themeColor: "#000000" };
