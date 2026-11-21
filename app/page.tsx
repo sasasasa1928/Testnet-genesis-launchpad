@@ -41,7 +41,11 @@ export default function Home() {
           <span className="dot" /> Genesis · testnet is live
         </span>
         <h1>
-          <span className="silver-text">Something from nothing.</span>
+          {"Every Great Thing Starts at Zero.".split(" ").map((w, i) => (
+            <span key={i} className="word silver-text" style={{ ["--d" as string]: `${0.15 + i * 0.09}s` }}>
+              {w}&nbsp;
+            </span>
+          ))}
         </h1>
         <p>Launch a coin. Trade it. Graduate it. Practice the full Genesis flow on Ethereum Sepolia with free test ETH.</p>
         <div className="row gap" style={{ justifyContent: "center" }}>
