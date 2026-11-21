@@ -19,6 +19,10 @@ You can launch a coin, trade it on a bonding curve and graduate it on **Ethereum
 
 ## 1. Deploy the contract to Sepolia
 
+**Easiest:** open `https://testnet.genesislaunch.family/deploy/`, connect your wallet, and tap **Deploy to Sepolia**. The page shows the two environment variables to paste into Vercel.
+
+Or from a terminal:
+
 ```bash
 cd contracts
 npm install
