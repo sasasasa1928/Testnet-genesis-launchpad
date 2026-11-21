@@ -50,7 +50,7 @@ export default function MyCoins() {
       <div className="card" style={{ marginTop: 28 }}>
         <div className="row between wrap gap">
           <div>
-            <div className="muted small">Claimable creator fees</div>
+            <div className="muted small">Claimable fees</div>
             <div className="mono silver-text" style={{ fontSize: 28, fontWeight: 800 }}>{eth(claim, 6)} ETH</div>
           </div>
           <button className="btn btn-silver" disabled={!claim || status.kind === "pending"}
