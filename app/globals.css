@@ -190,3 +190,14 @@ input[type="range"] { width: 100%; accent-color: #c9cdd2; }
 .docs code { font-family: var(--mono); background: var(--panel-2); border: 1px solid var(--line); padding: 1px 6px; border-radius: 6px; font-size: 13px; }
 .docs p, .docs li { color: #c5c7cc; }
 .empty { text-align: center; padding: 50px 20px; color: var(--muted); border: 1px dashed var(--line-2); border-radius: var(--radius); }
+
+/* ----------------------------------------------------------- small fixes */
+.tag { white-space: nowrap; flex-shrink: 0; }
+@media (max-width: 640px) {
+  .testnet-banner .container { gap: 4px 12px; padding: 6px 14px; font-size: 11.5px; }
+  .testnet-banner .container > span:nth-child(2) { display: none; }
+  .tabs { overflow-x: auto; max-width: 100%; }
+  .tabs button { white-space: nowrap; }
+  .search { min-width: 0; width: 100%; }
+  .brand .badge { display: none; }
+}
