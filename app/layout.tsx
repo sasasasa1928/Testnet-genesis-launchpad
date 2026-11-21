@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   title: "Genesis · testnet",
   description: "Launch a coin. Trade it. Graduate it. Genesis testnet on Ethereum Sepolia, test ETH only.",
   metadataBase: new URL("https://testnet.genesislaunch.family"),
-  openGraph: { title: "Genesis · testnet", description: "Launch a coin. Trade it. Graduate it.", images: ["/logo.svg"] },
+  openGraph: { title: "Genesis · testnet", description: "Launch a coin. Trade it. Graduate it.", images: ["/logo.png"] },
 };
 
 export const viewport = { themeColor: "#000000" };

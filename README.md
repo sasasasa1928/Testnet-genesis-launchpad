@@ -60,4 +60,4 @@ npm run dev
 
 ## Logo
 
-`public/logo.svg` and `app/icon.svg` are placeholder silver "G" marks. Replace them with the official Genesis logo files and keep the same file names.
+`public/logo.png` (silver mark, transparent) and `app/icon.png` / `app/apple-icon.png` (app icons) are generated from the official Genesis logo.

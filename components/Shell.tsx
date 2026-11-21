@@ -42,7 +42,7 @@ export function Nav() {
     <nav className="nav">
       <div className="container">
         <Link href="/" className="brand" onClick={() => setOpen(false)}>
-          <img src="/logo.svg" alt="Genesis" />
+          <img src="/logo.png" alt="Genesis" />
           <span className="silver-text">GENESIS</span>
           <span className="badge">testnet</span>
         </Link>
@@ -85,7 +85,7 @@ export function Footer() {
       <div className="container">
         <div>
           <div className="row gap" style={{ marginBottom: 6 }}>
-            <img src="/logo.svg" alt="" width={20} height={20} />
+            <img src="/logo.png" alt="" width={20} height={20} />
             <b className="silver-text">GENESIS</b> <span>testnet</span>
           </div>
           <div>Ethereum Sepolia · test ETH only · not affiliated with LayerZero Labs</div>

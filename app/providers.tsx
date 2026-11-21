@@ -110,7 +110,7 @@ export function Providers({ children }: { children: ReactNode }) {
       <PrivyProvider
         appId={PRIVY_APP_ID}
         config={{
-          appearance: { theme: "dark", accentColor: "#C9CDD2", logo: "/logo.svg", walletChainType: "ethereum-only" },
+          appearance: { theme: "dark", accentColor: "#C9CDD2", logo: "/logo.png", walletChainType: "ethereum-only" },
           defaultChain: CHAIN,
           supportedChains: [CHAIN],
           embeddedWallets: { ethereum: { createOnLogin: "users-without-wallets" } },
