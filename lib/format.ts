@@ -3,7 +3,7 @@ export const short = (a?: string) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : 
 export function eth(v: number, digits = 4) {
   if (!isFinite(v)) return "0";
   if (v === 0) return "0";
-  if (Math.abs(v) < 0.0001) return v.toExponential(2);
+  if (Math.abs(v) < 0.0001) return v.toFixed(8).replace(/0+$/, "");
   return v.toLocaleString("en-US", { maximumFractionDigits: digits });
 }
 

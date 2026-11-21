@@ -4,9 +4,9 @@ import { useState } from "react";
 import { price as fmtPrice } from "@/lib/format";
 
 /** Lightweight SVG price line (silver), no chart library needed. */
-export function PriceChart({ points }: { points: { t: number; p: number }[] }) {
+export function PriceChart({ points, height = 240 }: { points: { t: number; p: number }[]; height?: number }) {
   const [hover, setHover] = useState<number | null>(null);
-  const W = 640, H = 240, P = 8;
+  const W = 640, H = height, P = 8;
   if (points.length < 2) {
     return <div className="empty" style={{ padding: 60 }}>No price data yet.</div>;
   }
