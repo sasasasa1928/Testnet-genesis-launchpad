@@ -12,7 +12,8 @@ You can launch a coin, trade it on a bonding curve and graduate it on **Ethereum
 
 - **Supply:** every coin has a fixed supply of 1B tokens. 800M are sold on a constant-product bonding curve with 0.1 ETH / 1.073B virtual reserves.
 - **Graduation:** a coin graduates when the curve sells out, after about 0.29 ETH is raised. The raised ETH and the remaining 200M tokens become DEX liquidity. If a Uniswap V2-style router is set, LP tokens are burned. If not, the liquidity goes to the treasury.
-- **Fees:** the creator sets a total fee from 1% to 10%. The protocol always takes 0.7% and the creator side gets the rest. The creator side can be paid to the creator, to another wallet, to buyback & burn, or split between a wallet and buyback & burn. Fees on testnet are in Sepolia ETH.
+- **Fees:** the creator sets a total fee from 1% to 10%. The protocol always takes 0.7% and the creator side gets the rest. The creator side can be paid to the creator, to another wallet, to holders, to buyback & burn, or split between wallet / holders / burn. Fees on testnet are in Sepolia ETH.
+- **Holder rewards:** each token tracks rewards per share. The holders' part of every trade fee is split by balance, and holders claim anytime (`claimRewards`). The curve, the burn address and the DEX pool (or treasury) are excluded.
 - **Points:** computed in the browser from on-chain events: +100 for each launch, +1 per 0.001 ETH traded, +1000 when your coin graduates.
 - **Wallets:** Privy is used when `NEXT_PUBLIC_PRIVY_APP_ID` is set. Otherwise the app falls back to an injected wallet such as MetaMask or Rabby. When a user switches wallets, a pop-up asks them to sign again.
 - **Demo mode:** with no `NEXT_PUBLIC_FACTORY_ADDRESS` set, the site shows demo coins and a "not deployed yet" banner.
@@ -26,7 +27,7 @@ Or from a terminal:
 ```bash
 cd contracts
 npm install
-npx hardhat test                      # 10 tests
+npx hardhat test                      # 18 tests
 
 DEPLOYER_PRIVATE_KEY=0x... \
 npx hardhat run scripts/deploy.js --network sepolia

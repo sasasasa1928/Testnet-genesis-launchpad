@@ -5,7 +5,14 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {GenesisToken} from "./GenesisToken.sol";
 
+interface IUniswapV2Factory {
+    function getPair(address a, address b) external view returns (address);
+}
+
 interface IUniswapV2Router02 {
+    function factory() external view returns (address);
+    function WETH() external view returns (address);
+
     function addLiquidityETH(
         address token,
         uint256 amountTokenDesired,
@@ -22,8 +29,8 @@ interface IUniswapV2Router02 {
 /// Fees (charged in the chain's native token, ETH on Sepolia):
 ///  - Total trade fee is chosen by the creator between 1% and 10%.
 ///  - Protocol always takes 0.7%; the creator side gets the rest (0.3% - 9.3%).
-///  - The creator side can be paid to any wallet, and a share of it (0-100%)
-///    can be routed into automatic buyback & burn.
+///  - The creator side is split three ways, chosen by the creator:
+///      payout wallet / holders (pro-rata by balance, claimable) / buyback & burn.
 contract GenesisFactory is Ownable, ReentrancyGuard {
     // ---------------------------------------------------------------- constants
     uint256 public constant BPS = 10_000;
@@ -48,6 +55,7 @@ contract GenesisFactory is Ownable, ReentrancyGuard {
         address feeRecipient;
         uint16 totalFeeBps;
         uint16 burnBps; // share of the creator fee used for buyback & burn
+        uint16 holderBps; // share of the creator fee shared with holders
         bool graduated;
         uint64 createdAt;
         uint256 vEth;
@@ -70,7 +78,8 @@ contract GenesisFactory is Ownable, ReentrancyGuard {
         string metadata,
         uint16 totalFeeBps,
         address feeRecipient,
-        uint16 burnBps
+        uint16 burnBps,
+        uint16 holderBps
     );
     event Trade(
         address indexed token,
@@ -86,7 +95,8 @@ contract GenesisFactory is Ownable, ReentrancyGuard {
     event Graduated(address indexed token, uint256 ethLiquidity, uint256 tokenLiquidity);
     event BuybackBurn(address indexed token, uint256 ethSpent, uint256 tokensBurned);
     event Claimed(address indexed account, uint256 amount);
-    event CreatorFeeUpdated(address indexed token, address feeRecipient, uint16 burnBps);
+    event CreatorFeeUpdated(address indexed token, address feeRecipient, uint16 burnBps, uint16 holderBps);
+    event HolderRewards(address indexed token, uint256 amount);
 
     error BadFee();
     error BadParams();
@@ -111,10 +121,11 @@ contract GenesisFactory is Ownable, ReentrancyGuard {
         uint16 totalFeeBps,
         address feeRecipient,
         uint16 burnBps,
+        uint16 holderBps,
         uint256 minTokensOut
     ) external payable nonReentrant returns (address token) {
         if (totalFeeBps < MIN_TOTAL_FEE_BPS || totalFeeBps > MAX_TOTAL_FEE_BPS) revert BadFee();
-        if (burnBps > BPS) revert BadFee();
+        if (uint256(burnBps) + holderBps > BPS) revert BadFee();
         if (bytes(name).length == 0 || bytes(name).length > 32) revert BadParams();
         if (bytes(symbol).length == 0 || bytes(symbol).length > 10) revert BadParams();
         if (msg.value < launchFee) revert BadParams();
@@ -126,6 +137,7 @@ contract GenesisFactory is Ownable, ReentrancyGuard {
             feeRecipient: feeRecipient,
             totalFeeBps: totalFeeBps,
             burnBps: burnBps,
+            holderBps: holderBps,
             graduated: false,
             createdAt: uint64(block.timestamp),
             vEth: virtualEth,
@@ -136,7 +148,7 @@ contract GenesisFactory is Ownable, ReentrancyGuard {
         allTokens.push(token);
         if (launchFee > 0) claimable[treasury] += launchFee;
 
-        emit TokenCreated(token, msg.sender, name, symbol, metadata, totalFeeBps, feeRecipient, burnBps);
+        emit TokenCreated(token, msg.sender, name, symbol, metadata, totalFeeBps, feeRecipient, burnBps, holderBps);
 
         uint256 initialBuy = msg.value - launchFee;
         if (initialBuy > 0) _buy(token, msg.sender, initialBuy, minTokensOut);
@@ -212,8 +224,13 @@ contract GenesisFactory is Ownable, ReentrancyGuard {
         uint256 protocolPart = (fee * PROTOCOL_FEE_BPS) / c.totalFeeBps;
         uint256 creatorPart = fee - protocolPart;
         uint256 burnPart = (creatorPart * c.burnBps) / BPS;
+        uint256 holderPart = (creatorPart * c.holderBps) / BPS;
         claimable[treasury] += protocolPart;
-        claimable[c.feeRecipient] += creatorPart - burnPart;
+        claimable[c.feeRecipient] += creatorPart - burnPart - holderPart;
+        if (holderPart > 0) {
+            GenesisToken(token).distribute{value: holderPart}();
+            emit HolderRewards(token, holderPart);
+        }
         if (burnPart > 0) {
             if (c.graduated) claimable[c.feeRecipient] += burnPart;
             else buybackPool[token] += burnPart;
@@ -247,13 +264,14 @@ contract GenesisFactory is Ownable, ReentrancyGuard {
         emit BuybackBurn(token, amount, out);
     }
 
-    function setCreatorFee(address token, address feeRecipient, uint16 burnBps) external {
+    function setCreatorFee(address token, address feeRecipient, uint16 burnBps, uint16 holderBps) external {
         Curve storage c = curves[token];
         if (msg.sender != c.creator) revert NotCreator();
-        if (feeRecipient == address(0) || burnBps > BPS) revert BadParams();
+        if (feeRecipient == address(0) || uint256(burnBps) + holderBps > BPS) revert BadParams();
         c.feeRecipient = feeRecipient;
         c.burnBps = burnBps;
-        emit CreatorFeeUpdated(token, feeRecipient, burnBps);
+        c.holderBps = holderBps;
+        emit CreatorFeeUpdated(token, feeRecipient, burnBps, holderBps);
     }
 
     function claim() external nonReentrant {
@@ -280,7 +298,13 @@ contract GenesisFactory is Ownable, ReentrancyGuard {
             IUniswapV2Router02(router).addLiquidityETH{value: ethLiq}(
                 token, tokenLiq, 0, 0, DEAD, block.timestamp
             );
+            // The DEX pool must not earn holder rewards.
+            address pair = IUniswapV2Factory(IUniswapV2Router02(router).factory()).getPair(
+                token, IUniswapV2Router02(router).WETH()
+            );
+            if (pair != address(0)) GenesisToken(token).excludeFromRewards(pair);
         } else {
+            GenesisToken(token).excludeFromRewards(treasury);
             GenesisToken(token).transfer(treasury, tokenLiq);
             claimable[treasury] += ethLiq;
         }

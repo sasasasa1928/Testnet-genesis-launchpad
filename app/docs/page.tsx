@@ -39,7 +39,8 @@ export default function Docs() {
       <ul>
         <li>The creator picks a total trade fee from <b>1%</b> to <b>10%</b> at launch.</li>
         <li>The protocol always takes <b>{PROTOCOL_FEE_PCT}%</b>; the creator side gets the rest (0.3% to 9.3%).</li>
-        <li>The creator side can go to the creator&apos;s wallet, another wallet, buyback &amp; burn, or a split.</li>
+        <li>The creator side can go to the creator&apos;s wallet, another wallet, <b>holders</b>, buyback &amp; burn, or a split of wallet / holders / burn.</li>
+        <li><b>Holder rewards:</b> the holders&apos; share of each trade is split by balance across everyone holding the coin. Rewards build up per holder and can be claimed anytime from the coin page or My coins. The bonding curve, burn address and DEX pool never earn. Buying gives you a share of future fees only, not past ones.</li>
         <li>Creator fees build up in the contract; claim them from <Link href="/my-coins/" className="silver-text">My coins</Link>.</li>
         <li>On testnet, fees are paid in Sepolia ETH. On mainnet they&apos;re priced in ZRO.</li>
       </ul>

@@ -151,6 +151,7 @@ input[type="range"] { width: 100%; accent-color: #c9cdd2; }
 .fee-bar .p { background: #5e636b; }
 .fee-bar .c { background: var(--silver); }
 .fee-bar .b { background: #f2a1a1; }
+.fee-bar .h { background: #9be7b4; }
 .kv { display: flex; justify-content: space-between; font-size: 13px; padding: 6px 0; border-bottom: 1px dashed var(--line); }
 .kv:last-child { border-bottom: 0; }
 .kv span:first-child { color: var(--muted); }

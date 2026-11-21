@@ -11,7 +11,7 @@ import { DEMO, FACTORY, PROTOCOL_FEE_PCT } from "@/lib/config";
 import { useTx } from "@/lib/hooks";
 import { TxStatus } from "@/components/TxStatus";
 
-type Dest = "me" | "wallet" | "burn" | "split";
+type Dest = "me" | "wallet" | "holders" | "burn" | "split";
 
 export default function Launch() {
   const router = useRouter();
@@ -28,18 +28,20 @@ export default function Launch() {
   const [totalFee, setTotalFee] = useState(1); // %
   const [dest, setDest] = useState<Dest>("me");
   const [otherWallet, setOtherWallet] = useState("");
-  const [burnPct, setBurnPct] = useState(50); // for split
+  const [burnPct, setBurnPct] = useState(20); // for split
+  const [holderPct, setHolderPct] = useState(50); // for split
   const [initialBuy, setInitialBuy] = useState("");
 
   const creatorFee = +(totalFee - PROTOCOL_FEE_PCT).toFixed(2);
   const burnShare = dest === "burn" ? 100 : dest === "split" ? burnPct : 0;
-  const recipientShare = 100 - burnShare;
+  const holderShare = dest === "holders" ? 100 : dest === "split" ? holderPct : 0;
+  const recipientShare = 100 - burnShare - holderShare;
   const recipient: Address | "" =
     dest === "wallet" || dest === "split" ? (isAddress(otherWallet) ? (otherWallet as Address) : "") : address ?? "";
 
   const valid =
     name.trim().length > 0 && name.length <= 32 && symbol.trim().length > 0 && symbol.length <= 10 &&
-    (dest === "me" || dest === "burn" || (dest === "split" && (otherWallet === "" || isAddress(otherWallet))) || (dest === "wallet" && isAddress(otherWallet)));
+    (dest === "me" || dest === "burn" || dest === "holders" || (dest === "split" && (otherWallet === "" || isAddress(otherWallet))) || (dest === "wallet" && isAddress(otherWallet)));
 
   async function submit() {
     if (!address) return login();
@@ -55,7 +57,7 @@ export default function Launch() {
       address: FACTORY!,
       abi: factoryAbi,
       functionName: "createToken",
-      args: [name.trim(), symbol.trim().toUpperCase(), metadata, Math.round(totalFee * 100), recipient || zeroAddress, burnShare * 100, 0n],
+      args: [name.trim(), symbol.trim().toUpperCase(), metadata, Math.round(totalFee * 100), recipient || zeroAddress, burnShare * 100, holderShare * 100, 0n],
       value,
     });
     if (!receipt) return;
@@ -125,15 +127,19 @@ export default function Launch() {
             <div className="fee-bar">
               <span className="p" style={{ width: `${(PROTOCOL_FEE_PCT / totalFee) * 100}%` }} />
               <span className="c" style={{ width: `${(creatorFee / totalFee) * (recipientShare / 100) * 100}%` }} />
+              <span className="h" style={{ width: `${(creatorFee / totalFee) * (holderShare / 100) * 100}%` }} />
               <span className="b" style={{ width: `${(creatorFee / totalFee) * (burnShare / 100) * 100}%` }} />
             </div>
             <div className="kv"><span>Protocol</span><span className="mono">{PROTOCOL_FEE_PCT}%</span></div>
             <div className="kv"><span>Creator side</span><span className="mono">{creatorFee.toFixed(2)}%</span></div>
+            {recipientShare > 0 && <div className="kv"><span>→ Payout wallet</span><span className="mono">{((creatorFee * recipientShare) / 100).toFixed(2)}%</span></div>}
+            {holderShare > 0 && <div className="kv"><span>→ Holders</span><span className="mono">{((creatorFee * holderShare) / 100).toFixed(2)}%</span></div>}
+            {burnShare > 0 && <div className="kv"><span>→ Buyback & burn</span><span className="mono">{((creatorFee * burnShare) / 100).toFixed(2)}%</span></div>}
 
             <div className="field" style={{ marginTop: 14 }}>
               <label>Where does the creator fee go?</label>
               <div className="seg">
-                {([["me", "My wallet"], ["wallet", "Another wallet"], ["burn", "Buyback & burn"], ["split", "Split"]] as const).map(([k, l]) => (
+                {([["me", "My wallet"], ["wallet", "Another wallet"], ["holders", "Holders"], ["burn", "Buyback & burn"], ["split", "Split"]] as const).map(([k, l]) => (
                   <button key={k} className={dest === k ? "on" : ""} onClick={() => setDest(k)} type="button">
                     {l}
                   </button>
@@ -147,14 +153,24 @@ export default function Launch() {
               </div>
             )}
             {dest === "split" && (
-              <div className="field" style={{ marginTop: 10 }}>
-                <label>
-                  Buyback & burn share: {burnPct}% · payout: {100 - burnPct}%
-                </label>
-                <input type="range" min={0} max={100} step={5} value={burnPct} onChange={(e) => setBurnPct(Number(e.target.value))} />
-              </div>
+              <>
+                <div className="field" style={{ marginTop: 10 }}>
+                  <label>Holders: {holderPct}%</label>
+                  <input type="range" min={0} max={100} step={5} value={holderPct}
+                    onChange={(e) => { const v = Number(e.target.value); setHolderPct(v); if (v + burnPct > 100) setBurnPct(100 - v); }} />
+                </div>
+                <div className="field" style={{ marginTop: 6 }}>
+                  <label>Buyback & burn: {burnPct}%</label>
+                  <input type="range" min={0} max={100} step={5} value={burnPct}
+                    onChange={(e) => { const v = Number(e.target.value); setBurnPct(v); if (v + holderPct > 100) setHolderPct(100 - v); }} />
+                </div>
+                <div className="hint">Payout wallet gets the rest: {100 - holderPct - burnPct}%</div>
+              </>
             )}
-            <div className="hint">You can change the payout wallet and burn share later. The total fee is locked at launch.</div>
+            {(dest === "holders" || (dest === "split" && holderPct > 0)) && (
+              <div className="hint">Holder rewards are shared by balance on every trade. Holders claim them anytime on the coin page.</div>
+            )}
+            <div className="hint">You can change the payout wallet and the holders/burn shares later. The total fee is locked at launch.</div>
           </div>
 
           <div className="field">
@@ -181,6 +197,7 @@ export default function Launch() {
               <div className="mono muted">${preview.symbol}</div>
               <div className="row gap" style={{ marginTop: 6 }}>
                 <span className="tag">{totalFee.toFixed(1)}% fee</span>
+                {holderShare > 0 && <span className="tag">{holderShare}% to holders</span>}
                 {burnShare > 0 && <span className="tag">{burnShare}% burn</span>}
               </div>
             </div>

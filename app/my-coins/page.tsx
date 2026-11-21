@@ -3,13 +3,13 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import { formatEther } from "viem";
-import { useReadContract } from "wagmi";
+import { useReadContract, useReadContracts } from "wagmi";
 import { useWallet } from "@/app/providers";
 import { CoinCard } from "@/components/CoinCard";
 import { TxStatus } from "@/components/TxStatus";
-import { factoryAbi } from "@/lib/abi";
+import { factoryAbi, tokenAbi } from "@/lib/abi";
 import { CHAIN, DEMO, FACTORY } from "@/lib/config";
-import { eth } from "@/lib/format";
+import { eth, short } from "@/lib/format";
 import { useSnapshot, useTx } from "@/lib/hooks";
 
 export default function MyCoins() {
@@ -33,6 +33,21 @@ export default function MyCoins() {
     }
     return data.coins.filter((c) => (net.get(c.address.toLowerCase()) ?? 0) > 1);
   }, [data, me]);
+
+  // Holder rewards across every coin you've traded.
+  const traded = useMemo(() => {
+    if (!me || !data) return [];
+    const set = new Set(data.trades.filter((t) => t.trader.toLowerCase() === me).map((t) => t.token.toLowerCase()));
+    return data.coins.filter((c) => set.has(c.address.toLowerCase()) || c.creator.toLowerCase() === me);
+  }, [data, me]);
+  const { data: rewardReads } = useReadContracts({
+    contracts: traded.map((c) => ({ address: c.address, abi: tokenAbi, functionName: "claimableRewardsOf" as const, args: [address!] as const, chainId: CHAIN.id })),
+    query: { enabled: !!address && !DEMO && traded.length > 0, refetchInterval: 12_000 },
+  });
+  const rewards = traded
+    .map((c, i) => ({ coin: c, amount: rewardReads?.[i]?.result ? Number(formatEther(rewardReads[i].result as bigint)) : 0 }))
+    .filter((r) => r.amount > 0);
+  const rewardTx = useTx();
 
   if (!address) {
     return (
@@ -59,6 +74,27 @@ export default function MyCoins() {
           </button>
         </div>
         <div style={{ marginTop: 10 }}><TxStatus status={status} /></div>
+      </div>
+
+      <div className="section-title">Holder rewards</div>
+      <div className="card">
+        {rewards.length === 0 ? (
+          <div className="small muted">No holder rewards yet. Hold coins that share fees with holders to earn ETH on every trade.</div>
+        ) : (
+          rewards.map((r) => (
+            <div className="kv" key={r.coin.address} style={{ alignItems: "center" }}>
+              <span><Link href={`/coin/?a=${r.coin.address}`}><b>${r.coin.symbol}</b></Link> <span className="mono muted">{short(r.coin.address)}</span></span>
+              <span className="row gap">
+                <span className="mono up">{eth(r.amount, 8)} ETH</span>
+                <button className="btn" style={{ padding: "6px 10px", fontSize: 12.5 }} disabled={rewardTx.status.kind === "pending"}
+                  onClick={() => rewardTx.send({ address: r.coin.address, abi: tokenAbi, functionName: "claimRewards" })}>
+                  Claim
+                </button>
+              </span>
+            </div>
+          ))
+        )}
+        <div style={{ marginTop: 8 }}><TxStatus status={rewardTx.status} /></div>
       </div>
 
       <div className="section-title">Launched by you ({created.length})</div>

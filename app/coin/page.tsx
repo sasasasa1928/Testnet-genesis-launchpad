@@ -130,6 +130,7 @@ function CoinInner() {
 
       <div className="sticky" style={{ display: "grid", gap: 16 }}>
         <TradePanel coin={coin} />
+        <HolderRewardsCard coin={coin} />
         <FeeCard coin={coin} />
         <div className="card">
           <h3>Top holders (curve buyers)</h3>
@@ -240,6 +241,7 @@ function FeeCard({ coin }: { coin: Coin }) {
   const { send, status } = useTx();
   const [newWallet, setNewWallet] = useState("");
   const [newBurn, setNewBurn] = useState(coin.burnBps / 100);
+  const [newHolders, setNewHolders] = useState(coin.holderBps / 100);
   const { data: pool } = useReadContract({
     address: FACTORY ?? undefined, abi: factoryAbi, functionName: "buybackPool", args: [coin.address], chainId: CHAIN.id,
     query: { enabled: !DEMO, refetchInterval: 12_000 },
@@ -250,6 +252,7 @@ function FeeCard({ coin }: { coin: Coin }) {
   });
   const feeRecipient = (curve?.[1] as Address | undefined) ?? coin.feeRecipient;
   const burnBps = curve ? Number(curve[3]) : coin.burnBps;
+  const holderBps = curve ? Number(curve[4]) : coin.holderBps;
   const isCreator = address && address.toLowerCase() === coin.creator.toLowerCase();
   const creatorPct = coin.totalFeeBps / 100 - PROTOCOL_FEE_PCT;
 
@@ -259,7 +262,8 @@ function FeeCard({ coin }: { coin: Coin }) {
       <div className="kv"><span>Total trade fee</span><span className="mono">{coin.totalFeeBps / 100}%</span></div>
       <div className="kv"><span>Protocol</span><span className="mono">{PROTOCOL_FEE_PCT}%</span></div>
       <div className="kv"><span>Creator side</span><span className="mono">{creatorPct.toFixed(2)}%</span></div>
-      <div className="kv"><span>Paid to</span><span className="mono">{short(feeRecipient)}</span></div>
+      <div className="kv"><span>Payout wallet</span><span className="mono">{(10000 - burnBps - holderBps) / 100}% · {short(feeRecipient)}</span></div>
+      <div className="kv"><span>Holders</span><span className="mono">{holderBps / 100}% of creator fee</span></div>
       <div className="kv"><span>Buyback & burn</span><span className="mono">{burnBps / 100}% of creator fee</span></div>
       {burnBps > 0 && (
         <>
@@ -274,13 +278,72 @@ function FeeCard({ coin }: { coin: Coin }) {
         <div style={{ marginTop: 14, borderTop: "1px solid var(--line)", paddingTop: 12 }}>
           <div className="small" style={{ fontWeight: 600, marginBottom: 8 }}>Creator settings</div>
           <input className="input mono" placeholder={`Payout wallet (current ${short(feeRecipient)})`} value={newWallet} onChange={(e) => setNewWallet(e.target.value.trim())} />
+          <label className="small muted" style={{ display: "block", margin: "10px 0 4px" }}>Holders share: {newHolders}%</label>
+          <input type="range" min={0} max={100} step={5} value={newHolders}
+            onChange={(e) => { const v = Number(e.target.value); setNewHolders(v); if (v + newBurn > 100) setNewBurn(100 - v); }} />
           <label className="small muted" style={{ display: "block", margin: "10px 0 4px" }}>Burn share: {newBurn}%</label>
-          <input type="range" min={0} max={100} step={5} value={newBurn} onChange={(e) => setNewBurn(Number(e.target.value))} />
+          <input type="range" min={0} max={100} step={5} value={newBurn}
+            onChange={(e) => { const v = Number(e.target.value); setNewBurn(v); if (v + newHolders > 100) setNewHolders(100 - v); }} />
+          <div className="hint">Payout wallet gets the rest: {100 - newHolders - newBurn}%</div>
           <button className="btn btn-block" style={{ marginTop: 8 }} disabled={(newWallet !== "" && !isAddress(newWallet)) || status.kind === "pending"}
-            onClick={() => send({ address: FACTORY!, abi: factoryAbi, functionName: "setCreatorFee", args: [(newWallet || feeRecipient) as Address, newBurn * 100] })}>
+            onClick={() => send({ address: FACTORY!, abi: factoryAbi, functionName: "setCreatorFee", args: [coin.address, (newWallet || feeRecipient) as Address, newBurn * 100, newHolders * 100] })}>
             Save fee settings
           </button>
         </div>
+      )}
+      <div style={{ marginTop: 10 }}><TxStatus status={status} /></div>
+    </div>
+  );
+}
+
+function HolderRewardsCard({ coin }: { coin: Coin }) {
+  const { address, login } = useWallet();
+  const { send, status } = useTx();
+  const enabled = !DEMO;
+  const { data: mine } = useReadContract({
+    address: coin.address, abi: tokenAbi, functionName: "claimableRewardsOf", args: address ? [address] : undefined, chainId: CHAIN.id,
+    query: { enabled: enabled && !!address, refetchInterval: 12_000 },
+  });
+  const { data: total } = useReadContract({
+    address: coin.address, abi: tokenAbi, functionName: "totalRewardsDistributed", chainId: CHAIN.id,
+    query: { enabled, refetchInterval: 12_000 },
+  });
+  const { data: pending } = useReadContract({
+    address: coin.address, abi: tokenAbi, functionName: "pendingRewards", chainId: CHAIN.id,
+    query: { enabled, refetchInterval: 12_000 },
+  });
+  const { data: curve } = useReadContract({
+    address: FACTORY ?? undefined, abi: factoryAbi, functionName: "curves", args: [coin.address], chainId: CHAIN.id,
+    query: { enabled },
+  });
+  const holderBps = curve ? Number(curve[4]) : coin.holderBps;
+  if (holderBps === 0 && (!total || total === 0n)) return null;
+
+  const creatorPct = coin.totalFeeBps / 100 - PROTOCOL_FEE_PCT;
+  const holderPctOfTrade = (creatorPct * holderBps) / 10_000;
+  const claim = mine ? Number(formatEther(mine)) : 0;
+
+  return (
+    <div className="card">
+      <div className="row between">
+        <h3 style={{ margin: 0 }}>Holder rewards</h3>
+        <span className="tag" style={{ borderColor: "#234a31", color: "var(--up)" }}>{holderPctOfTrade.toFixed(2)}% of every trade</span>
+      </div>
+      <p className="small muted" style={{ margin: "8px 0 10px" }}>
+        Hold ${coin.symbol} to earn a share of trading fees, split by your balance. Claim anytime.
+      </p>
+      <div className="kv"><span>Paid to holders so far</span><span className="mono">{total ? eth(Number(formatEther(total)), 6) : "0"} ETH</span></div>
+      {pending && pending > 0n ? (
+        <div className="kv"><span>Waiting for first holders</span><span className="mono">{eth(Number(formatEther(pending)), 6)} ETH</span></div>
+      ) : null}
+      <div className="kv"><span>Your rewards</span><span className="mono up">{address ? `${eth(claim, 8)} ETH` : "-"}</span></div>
+      {address ? (
+        <button className="btn btn-silver btn-block" style={{ marginTop: 10 }} disabled={!claim || status.kind === "pending"}
+          onClick={() => send({ address: coin.address, abi: tokenAbi, functionName: "claimRewards" })}>
+          Claim rewards
+        </button>
+      ) : (
+        <button className="btn btn-block" style={{ marginTop: 10 }} onClick={login}>Connect to see your rewards</button>
       )}
       <div style={{ marginTop: 10 }}><TxStatus status={status} /></div>
     </div>

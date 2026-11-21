@@ -13,6 +13,7 @@ export type Coin = {
   feeRecipient: Address;
   totalFeeBps: number;
   burnBps: number;
+  holderBps: number;
   createdAt: number; // unix seconds
   graduated: boolean;
   vEth: number;
@@ -43,7 +44,7 @@ export type Trade = {
 export type Snapshot = { coins: Coin[]; trades: Trade[]; latestBlock: bigint };
 
 const createdEvent = parseAbiItem(
-  "event TokenCreated(address indexed token, address indexed creator, string name, string symbol, string metadata, uint16 totalFeeBps, address feeRecipient, uint16 burnBps)"
+  "event TokenCreated(address indexed token, address indexed creator, string name, string symbol, string metadata, uint16 totalFeeBps, address feeRecipient, uint16 burnBps, uint16 holderBps)"
 );
 const tradeEvent = parseAbiItem(
   "event Trade(address indexed token, address indexed trader, bool isBuy, uint256 ethAmount, uint256 tokenAmount, uint256 fee, uint256 vEth, uint256 vTokens, uint256 realEth)"
@@ -133,6 +134,7 @@ export async function loadSnapshot(): Promise<Snapshot> {
       feeRecipient: a.feeRecipient!,
       totalFeeBps: Number(a.totalFeeBps),
       burnBps: Number(a.burnBps),
+      holderBps: Number(a.holderBps),
       createdAt: timeOf(l.blockNumber),
       graduated: grad,
       vEth,
@@ -225,7 +227,7 @@ function demoSnapshot(): Snapshot {
     const mine = trades.filter((t) => t.token === address);
     coins.push({
       address, name, symbol, meta: { description }, creator, feeRecipient: creator,
-      totalFeeBps: feePct * 100, burnBps: i % 3 === 0 ? 5000 : 0, createdAt: now - ago * 60,
+      totalFeeBps: feePct * 100, burnBps: i % 3 === 0 ? 5000 : 0, holderBps: i % 3 === 1 ? 10000 : i % 3 === 0 ? 3000 : 0, createdAt: now - ago * 60,
       graduated: grad, vEth, vTokens, realEth: raised, tokensSold: sold,
       price: vEth / vTokens, startPrice: V0 / T0, marketCap: (vEth / vTokens) * TOTAL_SUPPLY,
       progress: grad ? 1 : Math.min(1, sold / CURVE_SUPPLY),

@@ -147,6 +147,12 @@ export const factoryAbi = [
     "internalType": "uint16",
     "name": "burnBps",
     "type": "uint16"
+   },
+   {
+    "indexed": false,
+    "internalType": "uint16",
+    "name": "holderBps",
+    "type": "uint16"
    }
   ],
   "name": "CreatorFeeUpdated",
@@ -175,6 +181,25 @@ export const factoryAbi = [
    }
   ],
   "name": "Graduated",
+  "type": "event"
+ },
+ {
+  "anonymous": false,
+  "inputs": [
+   {
+    "indexed": true,
+    "internalType": "address",
+    "name": "token",
+    "type": "address"
+   },
+   {
+    "indexed": false,
+    "internalType": "uint256",
+    "name": "amount",
+    "type": "uint256"
+   }
+  ],
+  "name": "HolderRewards",
   "type": "event"
  },
  {
@@ -245,6 +270,12 @@ export const factoryAbi = [
     "indexed": false,
     "internalType": "uint16",
     "name": "burnBps",
+    "type": "uint16"
+   },
+   {
+    "indexed": false,
+    "internalType": "uint16",
+    "name": "holderBps",
     "type": "uint16"
    }
   ],
@@ -537,6 +568,11 @@ export const factoryAbi = [
     "type": "uint16"
    },
    {
+    "internalType": "uint16",
+    "name": "holderBps",
+    "type": "uint16"
+   },
+   {
     "internalType": "uint256",
     "name": "minTokensOut",
     "type": "uint256"
@@ -581,6 +617,11 @@ export const factoryAbi = [
    {
     "internalType": "uint16",
     "name": "burnBps",
+    "type": "uint16"
+   },
+   {
+    "internalType": "uint16",
+    "name": "holderBps",
     "type": "uint16"
    },
    {
@@ -809,6 +850,11 @@ export const factoryAbi = [
     "internalType": "uint16",
     "name": "burnBps",
     "type": "uint16"
+   },
+   {
+    "internalType": "uint16",
+    "name": "holderBps",
+    "type": "uint16"
    }
   ],
   "name": "setCreatorFee",
@@ -1019,6 +1065,16 @@ export const tokenAbi = [
   "type": "error"
  },
  {
+  "inputs": [],
+  "name": "OnlyFactory",
+  "type": "error"
+ },
+ {
+  "inputs": [],
+  "name": "TransferFailed",
+  "type": "error"
+ },
+ {
   "anonymous": false,
   "inputs": [
    {
@@ -1049,6 +1105,51 @@ export const tokenAbi = [
    {
     "indexed": true,
     "internalType": "address",
+    "name": "account",
+    "type": "address"
+   }
+  ],
+  "name": "ExcludedFromRewards",
+  "type": "event"
+ },
+ {
+  "anonymous": false,
+  "inputs": [
+   {
+    "indexed": true,
+    "internalType": "address",
+    "name": "account",
+    "type": "address"
+   },
+   {
+    "indexed": false,
+    "internalType": "uint256",
+    "name": "amount",
+    "type": "uint256"
+   }
+  ],
+  "name": "RewardsClaimed",
+  "type": "event"
+ },
+ {
+  "anonymous": false,
+  "inputs": [
+   {
+    "indexed": false,
+    "internalType": "uint256",
+    "name": "amount",
+    "type": "uint256"
+   }
+  ],
+  "name": "RewardsDistributed",
+  "type": "event"
+ },
+ {
+  "anonymous": false,
+  "inputs": [
+   {
+    "indexed": true,
+    "internalType": "address",
     "name": "from",
     "type": "address"
    },
@@ -1067,6 +1168,25 @@ export const tokenAbi = [
   ],
   "name": "Transfer",
   "type": "event"
+ },
+ {
+  "inputs": [
+   {
+    "internalType": "address",
+    "name": "account",
+    "type": "address"
+   }
+  ],
+  "name": "accumulativeRewardsOf",
+  "outputs": [
+   {
+    "internalType": "uint256",
+    "name": "",
+    "type": "uint256"
+   }
+  ],
+  "stateMutability": "view",
+  "type": "function"
  },
  {
   "inputs": [
@@ -1168,6 +1288,38 @@ export const tokenAbi = [
  },
  {
   "inputs": [],
+  "name": "claimRewards",
+  "outputs": [
+   {
+    "internalType": "uint256",
+    "name": "amount",
+    "type": "uint256"
+   }
+  ],
+  "stateMutability": "nonpayable",
+  "type": "function"
+ },
+ {
+  "inputs": [
+   {
+    "internalType": "address",
+    "name": "account",
+    "type": "address"
+   }
+  ],
+  "name": "claimableRewardsOf",
+  "outputs": [
+   {
+    "internalType": "uint256",
+    "name": "",
+    "type": "uint256"
+   }
+  ],
+  "stateMutability": "view",
+  "type": "function"
+ },
+ {
+  "inputs": [],
   "name": "creator",
   "outputs": [
    {
@@ -1194,12 +1346,77 @@ export const tokenAbi = [
  },
  {
   "inputs": [],
+  "name": "distribute",
+  "outputs": [],
+  "stateMutability": "payable",
+  "type": "function"
+ },
+ {
+  "inputs": [
+   {
+    "internalType": "address",
+    "name": "account",
+    "type": "address"
+   }
+  ],
+  "name": "excludeFromRewards",
+  "outputs": [],
+  "stateMutability": "nonpayable",
+  "type": "function"
+ },
+ {
+  "inputs": [],
+  "name": "excludedSupply",
+  "outputs": [
+   {
+    "internalType": "uint256",
+    "name": "",
+    "type": "uint256"
+   }
+  ],
+  "stateMutability": "view",
+  "type": "function"
+ },
+ {
+  "inputs": [],
   "name": "factory",
   "outputs": [
    {
     "internalType": "address",
     "name": "",
     "type": "address"
+   }
+  ],
+  "stateMutability": "view",
+  "type": "function"
+ },
+ {
+  "inputs": [
+   {
+    "internalType": "address",
+    "name": "",
+    "type": "address"
+   }
+  ],
+  "name": "isExcludedFromRewards",
+  "outputs": [
+   {
+    "internalType": "bool",
+    "name": "",
+    "type": "bool"
+   }
+  ],
+  "stateMutability": "view",
+  "type": "function"
+ },
+ {
+  "inputs": [],
+  "name": "magnifiedRewardPerShare",
+  "outputs": [
+   {
+    "internalType": "uint256",
+    "name": "",
+    "type": "uint256"
    }
   ],
   "stateMutability": "view",
@@ -1233,12 +1450,51 @@ export const tokenAbi = [
  },
  {
   "inputs": [],
+  "name": "pendingRewards",
+  "outputs": [
+   {
+    "internalType": "uint256",
+    "name": "",
+    "type": "uint256"
+   }
+  ],
+  "stateMutability": "view",
+  "type": "function"
+ },
+ {
+  "inputs": [],
+  "name": "rewardSupply",
+  "outputs": [
+   {
+    "internalType": "uint256",
+    "name": "",
+    "type": "uint256"
+   }
+  ],
+  "stateMutability": "view",
+  "type": "function"
+ },
+ {
+  "inputs": [],
   "name": "symbol",
   "outputs": [
    {
     "internalType": "string",
     "name": "",
     "type": "string"
+   }
+  ],
+  "stateMutability": "view",
+  "type": "function"
+ },
+ {
+  "inputs": [],
+  "name": "totalRewardsDistributed",
+  "outputs": [
+   {
+    "internalType": "uint256",
+    "name": "",
+    "type": "uint256"
    }
   ],
   "stateMutability": "view",
@@ -1308,6 +1564,25 @@ export const tokenAbi = [
    }
   ],
   "stateMutability": "nonpayable",
+  "type": "function"
+ },
+ {
+  "inputs": [
+   {
+    "internalType": "address",
+    "name": "",
+    "type": "address"
+   }
+  ],
+  "name": "withdrawnRewards",
+  "outputs": [
+   {
+    "internalType": "uint256",
+    "name": "",
+    "type": "uint256"
+   }
+  ],
+  "stateMutability": "view",
   "type": "function"
  }
 ] as const;
