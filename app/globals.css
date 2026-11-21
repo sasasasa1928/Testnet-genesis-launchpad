@@ -201,3 +201,7 @@ input[type="range"] { width: 100%; accent-color: #c9cdd2; }
   .search { min-width: 0; width: 100%; }
   .brand .badge { display: none; }
 }
+@media (max-width: 520px) {
+  .brand span.silver-text { display: none; }
+  .nav .btn { padding: 8px 10px; }
+}
