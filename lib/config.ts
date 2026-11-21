@@ -1,13 +1,16 @@
 import { sepolia } from "viem/chains";
-import { createPublicClient, http, isAddress, type Address } from "viem";
+import { createPublicClient, getAddress, http, isAddress, type Address } from "viem";
 
 export const CHAIN = sepolia;
 export const RPC_URL = process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL || "https://ethereum-sepolia-rpc.publicnode.com";
 export const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID || "";
 
-const rawFactory = process.env.NEXT_PUBLIC_FACTORY_ADDRESS || "";
-export const FACTORY: Address | null = isAddress(rawFactory) ? (rawFactory as Address) : null;
-export const START_BLOCK = BigInt(process.env.NEXT_PUBLIC_FACTORY_START_BLOCK || "0");
+// Tolerate stray spaces/quotes and non-checksummed casing when values are pasted into Vercel.
+const clean = (v?: string) => (v || "").trim().replace(/^["']|["']$/g, "").trim();
+const rawFactory = clean(process.env.NEXT_PUBLIC_FACTORY_ADDRESS);
+export const FACTORY: Address | null = isAddress(rawFactory, { strict: false }) ? getAddress(rawFactory.toLowerCase()) : null;
+const rawBlock = clean(process.env.NEXT_PUBLIC_FACTORY_START_BLOCK).replace(/[^0-9]/g, "");
+export const START_BLOCK = BigInt(rawBlock || "0");
 
 /** Demo mode = no contract configured yet; the UI shows sample coins. */
 export const DEMO = FACTORY === null;
