@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CHAIN, EXPLORER, FACTORY, POINTS, PROTOCOL_FEE_PCT } from "@/lib/config";
+import { CHAIN, EXPLORER, FACTORIES, FACTORY, POINTS, PROTOCOL_FEE_PCT } from "@/lib/config";
 
 export const metadata = { title: "Docs · Genesis testnet" };
 
@@ -62,6 +62,14 @@ export default function Docs() {
           <code>not deployed yet</code>
         )}
       </p>
+      {FACTORIES.filter((f) => !f.current).length > 0 && (
+        <p>
+          Previous contracts (their coins are still listed and tradable):{" "}
+          {FACTORIES.filter((f) => !f.current).map((f) => (
+            <a key={f.address} className="mono" style={{ display: "block" }} href={`${EXPLORER}/address/${f.address}`} target="_blank" rel="noreferrer">{f.address}</a>
+          ))}
+        </p>
+      )}
       <p>
         Main events: <code>TokenCreated</code>, <code>Trade</code>, <code>Graduated</code>, <code>BuybackBurn</code>, <code>Claimed</code>.
         Read functions: <code>getTokens(offset, limit)</code>, <code>curves(token)</code>, <code>quoteBuy</code>, <code>quoteSell</code>, <code>ethToGraduate</code>.

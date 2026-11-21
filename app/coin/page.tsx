@@ -10,7 +10,11 @@ import { CoinImage } from "@/components/CoinCard";
 import { PriceChart } from "@/components/PriceChart";
 import { TxStatus } from "@/components/TxStatus";
 import { factoryAbi, tokenAbi } from "@/lib/abi";
-import { CHAIN, CURVE_SUPPLY, DEMO, EXPLORER, FACTORY, PROTOCOL_FEE_PCT } from "@/lib/config";
+import { parseAbi } from "viem";
+
+// First testnet contract (v1) had no holder share in setCreatorFee.
+const factoryV1Abi = parseAbi(["function setCreatorFee(address token, address feeRecipient, uint16 burnBps)"]);
+import { CHAIN, CURVE_SUPPLY, DEMO, EXPLORER, PROTOCOL_FEE_PCT } from "@/lib/config";
 import type { Coin } from "@/lib/data";
 import { ago, compact, eth, price, short } from "@/lib/format";
 import { useSnapshot, useTx } from "@/lib/hooks";
@@ -177,10 +181,10 @@ function TradePanel({ coin }: { coin: Coin }) {
     if (!num) return;
     const minOut = parseEther(((out * (100 - slippage)) / 100).toFixed(18).replace(/\.?0+$/, "") || "0");
     if (side === "buy") {
-      await send({ address: FACTORY!, abi: factoryAbi, functionName: "buy", args: [coin.address, minOut], value: parseEther(amount) });
+      await send({ address: coin.factory, abi: factoryAbi, functionName: "buy", args: [coin.address, minOut], value: parseEther(amount) });
     } else {
       const amt = num >= balance && tokenBal ? tokenBal : parseEther(amount);
-      await send({ address: FACTORY!, abi: factoryAbi, functionName: "sell", args: [coin.address, amt, minOut] });
+      await send({ address: coin.factory, abi: factoryAbi, functionName: "sell", args: [coin.address, amt, minOut] });
     }
     setAmount("");
   }
@@ -243,12 +247,12 @@ function FeeCard({ coin }: { coin: Coin }) {
   const [newBurn, setNewBurn] = useState(coin.burnBps / 100);
   const [newHolders, setNewHolders] = useState(coin.holderBps / 100);
   const { data: pool } = useReadContract({
-    address: FACTORY ?? undefined, abi: factoryAbi, functionName: "buybackPool", args: [coin.address], chainId: CHAIN.id,
+    address: coin.factory, abi: factoryAbi, functionName: "buybackPool", args: [coin.address], chainId: CHAIN.id,
     query: { enabled: !DEMO, refetchInterval: 12_000 },
   });
   const { data: curve } = useReadContract({
-    address: FACTORY ?? undefined, abi: factoryAbi, functionName: "curves", args: [coin.address], chainId: CHAIN.id,
-    query: { enabled: !DEMO },
+    address: coin.factory, abi: factoryAbi, functionName: "curves", args: [coin.address], chainId: CHAIN.id,
+    query: { enabled: !DEMO && coin.version === 2 },
   });
   const feeRecipient = (curve?.[1] as Address | undefined) ?? coin.feeRecipient;
   const burnBps = curve ? Number(curve[3]) : coin.burnBps;
@@ -269,7 +273,7 @@ function FeeCard({ coin }: { coin: Coin }) {
         <>
           <div className="kv"><span>Buyback pool</span><span className="mono">{pool ? eth(Number(formatEther(pool)), 6) : "0"} ETH</span></div>
           <button className="btn btn-block" style={{ marginTop: 10 }} disabled={!pool || pool === 0n || status.kind === "pending"}
-            onClick={() => send({ address: FACTORY!, abi: factoryAbi, functionName: "buybackAndBurn", args: [coin.address] })}>
+            onClick={() => send({ address: coin.factory, abi: factoryAbi, functionName: "buybackAndBurn", args: [coin.address] })}>
             🔥 Trigger buyback & burn
           </button>
         </>
@@ -278,15 +282,23 @@ function FeeCard({ coin }: { coin: Coin }) {
         <div style={{ marginTop: 14, borderTop: "1px solid var(--line)", paddingTop: 12 }}>
           <div className="small" style={{ fontWeight: 600, marginBottom: 8 }}>Creator settings</div>
           <input className="input mono" placeholder={`Payout wallet (current ${short(feeRecipient)})`} value={newWallet} onChange={(e) => setNewWallet(e.target.value.trim())} />
-          <label className="small muted" style={{ display: "block", margin: "10px 0 4px" }}>Holders share: {newHolders}%</label>
-          <input type="range" min={0} max={100} step={5} value={newHolders}
-            onChange={(e) => { const v = Number(e.target.value); setNewHolders(v); if (v + newBurn > 100) setNewBurn(100 - v); }} />
+          {coin.version === 2 && (
+            <>
+              <label className="small muted" style={{ display: "block", margin: "10px 0 4px" }}>Holders share: {newHolders}%</label>
+              <input type="range" min={0} max={100} step={5} value={newHolders}
+                onChange={(e) => { const v = Number(e.target.value); setNewHolders(v); if (v + newBurn > 100) setNewBurn(100 - v); }} />
+            </>
+          )}
           <label className="small muted" style={{ display: "block", margin: "10px 0 4px" }}>Burn share: {newBurn}%</label>
           <input type="range" min={0} max={100} step={5} value={newBurn}
             onChange={(e) => { const v = Number(e.target.value); setNewBurn(v); if (v + newHolders > 100) setNewHolders(100 - v); }} />
           <div className="hint">Payout wallet gets the rest: {100 - newHolders - newBurn}%</div>
           <button className="btn btn-block" style={{ marginTop: 8 }} disabled={(newWallet !== "" && !isAddress(newWallet)) || status.kind === "pending"}
-            onClick={() => send({ address: FACTORY!, abi: factoryAbi, functionName: "setCreatorFee", args: [coin.address, (newWallet || feeRecipient) as Address, newBurn * 100, newHolders * 100] })}>
+            onClick={() =>
+              coin.version === 2
+                ? send({ address: coin.factory, abi: factoryAbi, functionName: "setCreatorFee", args: [coin.address, (newWallet || feeRecipient) as Address, newBurn * 100, newHolders * 100] })
+                : send({ address: coin.factory, abi: factoryV1Abi, functionName: "setCreatorFee", args: [coin.address, (newWallet || feeRecipient) as Address, newBurn * 100] })
+            }>
             Save fee settings
           </button>
         </div>
@@ -299,7 +311,7 @@ function FeeCard({ coin }: { coin: Coin }) {
 function HolderRewardsCard({ coin }: { coin: Coin }) {
   const { address, login } = useWallet();
   const { send, status } = useTx();
-  const enabled = !DEMO;
+  const enabled = !DEMO && coin.version === 2;
   const { data: mine } = useReadContract({
     address: coin.address, abi: tokenAbi, functionName: "claimableRewardsOf", args: address ? [address] : undefined, chainId: CHAIN.id,
     query: { enabled: enabled && !!address, refetchInterval: 12_000 },
@@ -313,10 +325,11 @@ function HolderRewardsCard({ coin }: { coin: Coin }) {
     query: { enabled, refetchInterval: 12_000 },
   });
   const { data: curve } = useReadContract({
-    address: FACTORY ?? undefined, abi: factoryAbi, functionName: "curves", args: [coin.address], chainId: CHAIN.id,
-    query: { enabled },
+    address: coin.factory, abi: factoryAbi, functionName: "curves", args: [coin.address], chainId: CHAIN.id,
+    query: { enabled: enabled && coin.version === 2 },
   });
   const holderBps = curve ? Number(curve[4]) : coin.holderBps;
+  if (coin.version !== 2) return null; // first contract had no holder rewards
   if (holderBps === 0 && (!total || total === 0n)) return null;
 
   const creatorPct = coin.totalFeeBps / 100 - PROTOCOL_FEE_PCT;

@@ -3,12 +3,12 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import { formatEther } from "viem";
-import { useReadContract, useReadContracts } from "wagmi";
+import { useReadContracts } from "wagmi";
 import { useWallet } from "@/app/providers";
 import { CoinCard } from "@/components/CoinCard";
 import { TxStatus } from "@/components/TxStatus";
 import { factoryAbi, tokenAbi } from "@/lib/abi";
-import { CHAIN, DEMO, FACTORY } from "@/lib/config";
+import { CHAIN, DEMO, FACTORIES } from "@/lib/config";
 import { eth, short } from "@/lib/format";
 import { useSnapshot, useTx } from "@/lib/hooks";
 
@@ -16,10 +16,12 @@ export default function MyCoins() {
   const { address, login } = useWallet();
   const { data } = useSnapshot();
   const { send, status } = useTx();
-  const { data: claimable } = useReadContract({
-    address: FACTORY ?? undefined, abi: factoryAbi, functionName: "claimable", args: address ? [address] : undefined, chainId: CHAIN.id,
+  // Fees can sit in any Genesis contract (current and previous ones).
+  const { data: claimReads } = useReadContracts({
+    contracts: FACTORIES.map((f) => ({ address: f.address, abi: factoryAbi, functionName: "claimable" as const, args: [address!] as const, chainId: CHAIN.id })),
     query: { enabled: !!address && !DEMO, refetchInterval: 12_000 },
   });
+  const perFactory = FACTORIES.map((f, i) => ({ f, amount: (claimReads?.[i]?.result as bigint | undefined) ?? 0n }));
 
   const me = address?.toLowerCase();
   const created = useMemo(() => (data?.coins ?? []).filter((c) => c.creator.toLowerCase() === me), [data, me]);
@@ -58,7 +60,8 @@ export default function MyCoins() {
     );
   }
 
-  const claim = claimable ? Number(formatEther(claimable)) : 0;
+  const claim = perFactory.reduce((t, x) => t + Number(formatEther(x.amount)), 0);
+  const toClaim = perFactory.filter((x) => x.amount > 0n);
 
   return (
     <>
@@ -69,8 +72,11 @@ export default function MyCoins() {
             <div className="mono silver-text" style={{ fontSize: 28, fontWeight: 800 }}>{eth(claim, 6)} ETH</div>
           </div>
           <button className="btn btn-silver" disabled={!claim || status.kind === "pending"}
-            onClick={() => send({ address: FACTORY!, abi: factoryAbi, functionName: "claim" })}>
-            Claim fees
+            onClick={async () => {
+              // One claim per contract that holds fees for you.
+              for (const x of toClaim) await send({ address: x.f.address, abi: factoryAbi, functionName: "claim" });
+            }}>
+            {toClaim.length > 1 ? `Claim fees (${toClaim.length} txs)` : "Claim fees"}
           </button>
         </div>
         <div style={{ marginTop: 10 }}><TxStatus status={status} /></div>

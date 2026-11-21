@@ -6,7 +6,7 @@ import { useAccount, useBalance, useDeployContract, useSwitchChain } from "wagmi
 import { useWallet } from "@/app/providers";
 import { factoryAbi } from "@/lib/abi";
 import { factoryBytecode } from "@/lib/bytecode";
-import { CHAIN, EXPLORER, FACTORY, publicClient } from "@/lib/config";
+import { CHAIN, EXPLORER, FACTORIES, FACTORY, START_BLOCK, publicClient } from "@/lib/config";
 import { eth } from "@/lib/format";
 
 /** One-time admin page: deploy GenesisFactory to Sepolia straight from the connected wallet. */
@@ -63,7 +63,7 @@ export default function Deploy() {
         </p>
         {FACTORY && (
           <div className="notice" style={{ marginBottom: 12 }}>
-            A contract is already configured: <span className="mono">{FACTORY}</span>. Deploying again creates a new, separate contract.
+            A contract is already configured: <span className="mono">{FACTORY}</span>. Deploying again creates a new contract; its coins stay listed if you add it to <span className="mono">NEXT_PUBLIC_LEGACY_FACTORIES</span> (shown after deploy).
           </div>
         )}
 
@@ -103,11 +103,18 @@ export default function Deploy() {
         <div className="card">
           <h3>Last step: add these to Vercel</h3>
           <p className="small muted" style={{ marginTop: 0 }}>
-            Vercel → your testnet project → Settings → Environment Variables. Add both, then redeploy.
+            Vercel → your testnet project → Settings → Environment Variables. Add or replace these, then redeploy.
+            {FACTORY ? " The last one keeps coins from your previous contracts listed and tradable." : ""}
           </p>
           {([
             ["NEXT_PUBLIC_FACTORY_ADDRESS", result.address],
             ["NEXT_PUBLIC_FACTORY_START_BLOCK", result.block.toString()],
+            ...(FACTORY
+              ? ([[
+                  "NEXT_PUBLIC_LEGACY_FACTORIES",
+                  [`${FACTORY}:${START_BLOCK}:2`, ...FACTORIES.filter((f) => !f.current).map((f) => `${f.address}:${f.startBlock}:${f.version}`)].join(","),
+                ]] as const)
+              : []),
           ] as const).map(([k, v]) => (
             <div key={k} style={{ marginBottom: 12 }}>
               <div className="small" style={{ fontWeight: 600 }}>{k}</div>

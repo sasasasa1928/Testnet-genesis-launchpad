@@ -12,6 +12,33 @@ export const FACTORY: Address | null = isAddress(rawFactory, { strict: false }) 
 const rawBlock = clean(process.env.NEXT_PUBLIC_FACTORY_START_BLOCK).replace(/[^0-9]/g, "");
 export const START_BLOCK = BigInt(rawBlock || "0");
 
+export type FactoryInfo = { address: Address; startBlock: bigint; version: 1 | 2; current: boolean };
+
+/**
+ * Previous Genesis contracts, so their coins stay listed and tradable after an upgrade.
+ * Format: NEXT_PUBLIC_LEGACY_FACTORIES="0xOldAddress:startBlock[:version],0xOther:block"
+ * (version defaults to 1 = the first testnet contract, without holder rewards).
+ */
+const legacy: FactoryInfo[] = clean(process.env.NEXT_PUBLIC_LEGACY_FACTORIES)
+  .split(/[,\s]+/)
+  .map((entry) => entry.trim())
+  .filter(Boolean)
+  .flatMap((entry): FactoryInfo[] => {
+    const [addr, block, ver] = entry.split(":").map((x) => clean(x));
+    if (!isAddress(addr, { strict: false })) return [];
+    const address = getAddress(addr.toLowerCase());
+    if (FACTORY && address === FACTORY) return [];
+    return [{ address, startBlock: BigInt((block || "0").replace(/[^0-9]/g, "") || "0"), version: ver === "2" ? 2 : 1, current: false }];
+  });
+
+/** All Genesis contracts the site reads: the current one first, then previous ones. */
+export const FACTORIES: FactoryInfo[] = [
+  ...(FACTORY ? [{ address: FACTORY, startBlock: START_BLOCK, version: 2 as const, current: true }] : []),
+  ...legacy,
+];
+
+export const isGenesisFactory = (a: string) => FACTORIES.some((f) => f.address.toLowerCase() === a.toLowerCase());
+
 /** Demo mode = no contract configured yet; the UI shows sample coins. */
 export const DEMO = FACTORY === null;
 

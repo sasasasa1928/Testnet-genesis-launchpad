@@ -48,6 +48,7 @@ Optional settings:
    - `NEXT_PUBLIC_FACTORY_ADDRESS`: from step 1
    - `NEXT_PUBLIC_FACTORY_START_BLOCK`: from step 1
    - `NEXT_PUBLIC_SEPOLIA_RPC_URL` (optional): an Alchemy or Infura Sepolia URL, for faster loading
+   - `NEXT_PUBLIC_LEGACY_FACTORIES` (optional): previous Genesis contracts, so their coins stay listed and tradable after you deploy a new one. Format: `0xOldAddress:startBlock[:version]`, comma-separated. Version `1` is the first testnet contract (no holder rewards) and is the default. The `/deploy/` page prints the right value after a redeploy.
 3. In Settings → Domains, add `testnet.genesislaunch.family`. Then add the CNAME record Vercel shows you at Hostinger, with host `testnet`.
 4. In the Privy dashboard, add `https://testnet.genesislaunch.family` to the allowed domains.
 
