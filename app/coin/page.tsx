@@ -34,7 +34,7 @@ function CoinInner() {
   if (isLoading) return <div className="empty" style={{ marginTop: 30 }}>Loading coin…</div>;
   if (!coin) return <div className="empty" style={{ marginTop: 30 }}>Coin not found. <Link href="/" className="silver-text">Back to coins</Link></div>;
 
-  const change = trades.length > 1 ? (trades[trades.length - 1].price / trades[0].price - 1) * 100 : 0;
+  const change = (coin.price / coin.startPrice - 1) * 100;
   const topTraders = Object.values(
     trades.reduce<Record<string, { trader: Address; net: number }>>((acc, t) => {
       const k = t.trader.toLowerCase();
@@ -84,7 +84,13 @@ function CoinInner() {
               <div><div className="muted small">Trades</div><div className="mono">{coin.trades}</div></div>
             </div>
           </div>
-          <PriceChart points={trades.map((t) => ({ t: t.time, p: t.price }))} />
+          <PriceChart
+            points={[
+              { t: coin.createdAt, p: coin.startPrice },
+              ...trades.map((t) => ({ t: t.time, p: t.price })),
+              { t: Math.max(Math.floor(Date.now() / 1000), coin.lastTradeAt), p: coin.price },
+            ]}
+          />
         </div>
 
         <div className="card">

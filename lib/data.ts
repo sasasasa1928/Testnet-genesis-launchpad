@@ -20,6 +20,7 @@ export type Coin = {
   realEth: number;
   tokensSold: number;
   price: number; // ETH per token
+  startPrice: number; // launch price
   marketCap: number; // ETH
   progress: number; // 0..1
   volume: number; // ETH
@@ -139,6 +140,7 @@ export async function loadSnapshot(): Promise<Snapshot> {
       realEth,
       tokensSold,
       price: vEth / vTokens,
+      startPrice: initV!.vEth / initV!.vTokens,
       marketCap: (vEth / vTokens) * TOTAL_SUPPLY,
       progress: grad ? 1 : Math.min(1, tokensSold / CURVE_SUPPLY),
       volume: myTrades.reduce((s, t) => s + t.eth, 0),
@@ -225,7 +227,7 @@ function demoSnapshot(): Snapshot {
       address, name, symbol, meta: { description }, creator, feeRecipient: creator,
       totalFeeBps: feePct * 100, burnBps: i % 3 === 0 ? 5000 : 0, createdAt: now - ago * 60,
       graduated: grad, vEth, vTokens, realEth: raised, tokensSold: sold,
-      price: vEth / vTokens, marketCap: (vEth / vTokens) * TOTAL_SUPPLY,
+      price: vEth / vTokens, startPrice: V0 / T0, marketCap: (vEth / vTokens) * TOTAL_SUPPLY,
       progress: grad ? 1 : Math.min(1, sold / CURVE_SUPPLY),
       volume: mine.reduce((s, t) => s + t.eth, 0), trades: mine.length,
       lastTradeAt: mine.length ? mine[mine.length - 1].time : now - ago * 60,

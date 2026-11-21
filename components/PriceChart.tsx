@@ -8,11 +8,12 @@ export function PriceChart({ points }: { points: { t: number; p: number }[] }) {
   const [hover, setHover] = useState<number | null>(null);
   const W = 640, H = 240, P = 8;
   if (points.length < 2) {
-    return <div className="empty" style={{ padding: 60 }}>The chart appears after the first trades.</div>;
+    return <div className="empty" style={{ padding: 60 }}>No price data yet.</div>;
   }
   const ps = points.map((x) => x.p);
-  const min = Math.min(...ps), max = Math.max(...ps);
-  const span = max - min || max * 0.1 || 1;
+  let min = Math.min(...ps), max = Math.max(...ps);
+  if (max === min) { min *= 0.9; max *= 1.1; } // flat line sits in the middle
+  const span = max - min || 1;
   const xs = (i: number) => P + (i / (points.length - 1)) * (W - 2 * P);
   const ys = (p: number) => H - P - ((p - min) / span) * (H - 2 * P);
   const d = points.map((pt, i) => `${i ? "L" : "M"}${xs(i).toFixed(1)},${ys(pt.p).toFixed(1)}`).join(" ");
